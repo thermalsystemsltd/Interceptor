@@ -1,44 +1,93 @@
 const net = require('net');
-const crc32 = require('crc-32'); // Example if you need CRC calculation
+const crc32 = require('crc-32');
+const sql = require('mssql');
 
-const PORT = 12345;
-const HOST = '0.0.0.0'; // Listens on all available interfaces
+const sqlConfig = {
+    user: "MONITOR",
+    password: "Thermal13",
+    database: 'db1',
+    server: '192.168.1.221',
+    port: 1433,
+    options: {
+        encrypt: false,
+        enableArithAbort: true,
+        instanceName: 'DBSERVER'
+    },
+    pool: {
+        max: 10,
+        min: 0,
+        idleTimeoutMillis: 60000
+    }
+};
 
-const server = net.createServer((socket) => {
-    console.log(`Connected: ${socket.remoteAddress}:${socket.remotePort}`);
+const HOST = '0.0.0.0';
+const PORT_RANGE_START = 10997;
+const PORT_RANGE_END = 11105;
 
-    let buffer = ''; // Initialize an empty buffer to store incoming data
+function createServer(port) {
+    const server = net.createServer((socket) => {
+        console.log(`Connected: ${socket.remoteAddress}:${socket.remotePort}`);
 
-    socket.on('data', (data) => {
-        console.log(`Received data chunk: ${data.toString()}`); // Log each chunk of data
-        buffer += data.toString();  // Accumulate data in the buffer
-
-        console.log(`Buffer state: ${buffer}`);
-
-        try {
-            const parsedMessage = JSON.parse(buffer);
-            console.log(`Parsed JSON: ${JSON.stringify(parsedMessage, null, 2)}`); // Pretty-print the JSON
-            handleRequest(parsedMessage, socket);
-            buffer = '';  // Clear the buffer after successful parse
-        } catch (error) {
-            if (error instanceof SyntaxError) {
-                console.log('Waiting for more data...');
-            } else {
-                console.error('Error parsing message:', error.message);
-                socket.write(JSON.stringify({ error: 'Invalid JSON format' }));
-                buffer = '';  // Clear buffer to avoid accumulating bad data
+        // Connect to SQL Server and query the database
+        sql.connect(sqlConfig, (err) => {
+            if (err) {
+                console.error('Database connection failed:', err);
+                socket.end();
+                return;
             }
-        }
+
+            const request = new sql.Request();
+            request.query('SELECT name FROM dbo.companies', (err, result) => {
+                if (err) {
+                    console.error('Database query failed:', err);
+                    socket.end();
+                    return;
+                }
+
+                const companyNames = result.recordset.map(row => row.name);
+                console.log('Company Names:', companyNames);
+            });
+        });
+
+        let buffer = '';
+
+        socket.on('data', (data) => {
+            console.log(`Received data chunk: ${data.toString()}`);
+            buffer += data.toString();
+
+            try {
+                const parsedMessage = JSON.parse(buffer);
+                console.log(`Parsed JSON: ${JSON.stringify(parsedMessage, null, 2)}`);
+                handleRequest(parsedMessage, socket);
+                buffer = '';
+            } catch (error) {
+                if (error instanceof SyntaxError) {
+                    console.log('Waiting for more data...');
+                } else {
+                    console.error('Error parsing message:', error.message);
+                    socket.write(JSON.stringify({ error: 'Invalid JSON format' }));
+                    buffer = '';
+                }
+            }
+        });
+
+        socket.on('close', () => {
+            console.log(`Closed connection with: ${socket.remoteAddress}:${socket.remotePort}`);
+        });
+
+        socket.on('error', (err) => {
+            console.error(`Socket error: ${err.message}`);
+        });
     });
 
-    socket.on('close', () => {
-        console.log(`Closed connection with: ${socket.remoteAddress}:${socket.remotePort}`);
+    server.listen(port, HOST, () => {
+        console.log(`Server running at ${HOST}:${port}`);
     });
+}
 
-    socket.on('error', (err) => {
-        console.error(`Socket error: ${err.message}`);
-    });
-});
+for (let port = PORT_RANGE_START; port <= PORT_RANGE_END; port++) {
+    createServer(port);
+}
 
 function formatSerialNumber(sn) {
     return sn.match(/.{1,2}/g).join('.');
@@ -52,7 +101,7 @@ function formatTemperature(decodedValue) {
     if (decodedValue === 0x8082) {
         return 'No Signal';
     } else {
-        return (decodedValue / 10).toFixed(1) + 'C'; // Convert to temperature by dividing by 10
+        return (decodedValue / 10).toFixed(1) + 'C';
     }
 }
 
@@ -100,7 +149,7 @@ function handleRequest(message, socket) {
             case 'id':
                 message.id.m.forEach(sensorData => {
                     sensorData.cs.forEach(controlSetting => {
-                        controlSetting.decodedValue = parseInt(controlSetting.d, 16); // Convert hex to decimal
+                        controlSetting.decodedValue = parseInt(controlSetting.d, 16);
                     });
 
                     const formattedSn = formatSerialNumber(sensorData.sn);
@@ -110,7 +159,7 @@ function handleRequest(message, socket) {
                     console.log(`Sensor SN: ${formattedSn}, DateTime: ${datetime}, SG: ${sensorData.sg}, Battery: ${formattedBt}, Decoded Data:`);
 
                     sensorData.cs.forEach(controlSetting => {
-                        if (controlSetting.t === 1) { // Assuming t:1 is temperature
+                        if (controlSetting.t === 1) {
                             const temperature = formatTemperature(controlSetting.decodedValue);
                             console.log(`Temperature: ${temperature}`);
                         } else {
@@ -118,7 +167,7 @@ function handleRequest(message, socket) {
                         }
                     });
 
-                    console.log(''); // Add an empty line between sensor blocks
+                    console.log('');
                 });
 
                 const messageStringId = JSON.stringify(message);
@@ -142,7 +191,3 @@ function handleRequest(message, socket) {
         socket.write(JSON.stringify({ error: 'Invalid JSON format' }));
     }
 }
-
-server.listen(PORT, HOST, () => {
-    console.log(`Server running at ${HOST}:${PORT}`);
-});
