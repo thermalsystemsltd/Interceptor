@@ -28,27 +28,6 @@ function createServer(port) {
     const server = net.createServer((socket) => {
         console.log(`Connected: ${socket.remoteAddress}:${socket.remotePort}`);
 
-        // Connect to SQL Server and query the database
-        sql.connect(sqlConfig, (err) => {
-            if (err) {
-                console.error('Database connection failed:', err);
-                socket.end();
-                return;
-            }
-
-            const request = new sql.Request();
-            request.query('SELECT name FROM dbo.companies', (err, result) => {
-                if (err) {
-                    console.error('Database query failed:', err);
-                    socket.end();
-                    return;
-                }
-
-                const companyNames = result.recordset.map(row => row.name);
-                console.log('Company Names:', companyNames);
-            });
-        });
-
         let buffer = '';
 
         socket.on('data', (data) => {
@@ -105,31 +84,30 @@ function formatTemperature(decodedValue) {
     }
 }
 
-function handleRequest(message, socket) {
+async function handleRequest(message, socket) {
     try {
         console.log(`Handling request: ${JSON.stringify(message, null, 2)}`);
         let response = {};
 
         switch (message.cd) {
+            case 'or':
+                await handleBaseUnitConnection(message.bs, socket);
+                response = { r: 'ack' };
+                break;
+
             case 'dt':
                 response = { utc: new Date().toISOString() };
                 break;
 
             case 'pv':
-                const messageStringPv = JSON.stringify(message);
-                const crcValuePv = crc32.str(messageStringPv);
-                const tsValuePv = Buffer.from(crcValuePv.toString()).toString('base64');
+            case 'pu': // Treat 'pu' the same as 'pv'
+                const messageString = JSON.stringify(message);
+                const crcValue = crc32.str(messageString);
+                const tsValue = Buffer.from(crcValue.toString()).toString('base64');
 
                 response = {
                     r: 'ack',
-                    ts: tsValuePv
-                };
-                break;
-
-            case 'or':
-                response = {
-                    r: 'ack',
-                    or: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=='
+                    ts: tsValue
                 };
                 break;
 
@@ -141,9 +119,7 @@ function handleRequest(message, socket) {
                 break;
 
             case 'sl':
-                response = {
-                    r: 'ack'
-                };
+                response = { r: 'ack' };
                 break;
 
             case 'id':
@@ -189,5 +165,30 @@ function handleRequest(message, socket) {
     } catch (error) {
         console.error('Failed to process message', error);
         socket.write(JSON.stringify({ error: 'Invalid JSON format' }));
+    }
+}
+
+
+async function handleBaseUnitConnection(baseUnitId, socket) {
+    try {
+        await sql.connect(sqlConfig);
+        const request = new sql.Request();
+
+        // Check if baseUnitId exists in the BaseUnits table
+        const result = await request.query(`SELECT CompanyId FROM dbo.BaseUnits WHERE baseUnitId = '${baseUnitId}'`);
+
+        if (result.recordset.length > 0) {
+            const companyId = result.recordset[0].CompanyId;
+
+            // Now get the company name from the companies table
+            const companyResult = await request.query(`SELECT name FROM dbo.companies WHERE id = '${companyId}'`);
+            const companyName = companyResult.recordset.length > 0 ? companyResult.recordset[0].name : 'Unknown Company';
+
+            console.log(`Base Unit ID: ${baseUnitId} belongs to Company: ${companyName}`);
+        } else {
+            console.log(`Base Unit ID: ${baseUnitId} not found in the database.`);
+        }
+    } catch (err) {
+        console.error('Database operation failed:', err);
     }
 }
