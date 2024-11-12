@@ -12,47 +12,41 @@ reverse the string and decode each octet of the 6 digit serial number in pairs f
 3e4c39ff ff 39 4c 3e = 57.76.62
 
 
+Updated Process for Creating a ts String
 
+    Identify Serial Number Components:
+        For a legacy serial, format it as FF XX YY ZZ where:
+            FF is the prefix indicating it’s a legacy sensor.
+            XX, YY, ZZ are the segments of the serial number in hexadecimal.
 
+    Convert Each Segment to Hexadecimal:
+        Given a serial number like 57.76.68:
+            FF is fixed as the legacy identifier.
+            57, 76, 68 are converted directly to hexadecimal.
 
-To dynamically create a ts string from any given serial number in the format you’ve specified, here’s the step-by-step process:
-Steps to Create a ts String
+    Concatenate the Segments:
+        Each serial number becomes a 4-byte segment (e.g., 68 76 57 FF for 57.76.68 when reversed).
 
-    Serial Number Format: Given a serial number like 57.76.68, split it into the respective parts:
-        57 denotes the legacy prefix in decimal (which becomes FF in hexadecimal).
-        76, 68, etc., are the decimal parts for each segment of the serial.
+    Base64 Encode the Full Sequence:
+        After constructing the hex sequence, convert it to binary and encode as Base64.
 
-    Hex Conversion:
-        Convert each part of the serial number from decimal to hexadecimal:
-            57.76.68 becomes FF 4C 44.
-            Note: 57 is always converted to FF for legacy sensors.
-
-    Concatenate Segments:
-        Construct each 4-byte segment for the serial number.
-        For 57.76.68, concatenate 44 4C 39 FF.
-
-    Encode to Base64:
-        After constructing the hex sequence for all serial numbers, convert the entire sequence to binary.
-        Base64 encode this binary data to get the ts string.
-
-JavaScript Code for Dynamically Creating a ts String
-
-Here’s a JavaScript code snippet to create the ts string:
+JavaScript Code for Correctly Creating the ts String
 
 const Buffer = require('buffer').Buffer;
 
 function createTsString(serials) {
     const hexSegments = serials.map(serial => {
-        // Split the serial like "57.76.68" into parts
-        const [legacy, part1, part2] = serial.split('.');
+        // Split the serial number "57.76.68" into parts
+        const [part1, part2, part3] = serial.split('.');
 
         // Convert to hexadecimal format
-        const hexPrefix = "ff"; // Legacy prefix for 57
-        const hexPart1 = parseInt(part1).toString(16).padStart(2, '0'); // Convert 76 to hex
-        const hexPart2 = parseInt(part2).toString(16).padStart(2, '0'); // Convert 68 to hex
+        const hexPrefix = "ff"; // Legacy prefix
+        const hexPart1 = parseInt(part1).toString(16).padStart(2, '0'); // Convert 57 to hex
+        const hexPart2 = parseInt(part2).toString(16).padStart(2, '0'); // Convert 76 to hex
+        const hexPart3 = parseInt(part3).toString(16).padStart(2, '0'); // Convert 68 to hex
 
-        // Construct the 4-byte hex segment (reversed for each serial part)
-        return hexPart2 + hexPart1 + hexPrefix;
+        // Construct the 4-byte hex segment in the correct order
+        return hexPart3 + hexPart2 + hexPart1 + hexPrefix;
     });
 
     // Concatenate all hex segments and convert to binary
@@ -67,9 +61,9 @@ const serialNumbers = ["57.76.68", "57.76.60", "57.76.61"];
 const tsString = createTsString(serialNumbers);
 console.log("Generated ts string:", tsString);
 
-Explanation of the Code
+Explanation of Changes
 
-    Hex Conversion: The parseInt with toString(16) converts each decimal segment to hexadecimal.
-    Padding: Each segment is padded to 2 digits for consistency.
-    Binary Conversion: The concatenated hex segments are converted to binary.
-    Base64 Encoding: The binary data is encoded as Base64 to create the final ts string.
+    Hex Segments Order: Each serial’s components (XX, YY, ZZ) are appended with FF without replacing the first segment.
+    Final Concatenation: All serials are concatenated, converted to binary, and then Base64 encoded to form the final ts string.
+
+This will generate a correct ts string for any list of legacy serial numbers. Let me know if further adjustments are needed!
