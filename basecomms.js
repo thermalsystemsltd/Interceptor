@@ -103,6 +103,7 @@ function generateTSString(sensorSerials) {
 
 // Parse and publish data to MQTT
 // Parse and publish data to MQTT
+// Parse and publish data to MQTT
 function parseAndPublishData(companyName, baseSerial, sensorData) {
     const formattedData = sensorData.map(sensor => {
         const temperature = sensor.cs.find(channel => channel.c === 0 && channel.t === 1)?.d;
@@ -111,20 +112,25 @@ function parseAndPublishData(companyName, baseSerial, sensorData) {
         // Remove leading zeros from serial number
         const trimmedSerialNumber = sensor.sn.replace(/^0+/, '');
 
+        // Format timestamp to "YYYY/MM/DD HH:MM:SS"
+        const formattedTimestamp = sensor.dt.replace(/T/, ' ').replace(/Z/, '').replace(/-/g, '/');
+
         const payload = {
             temperature: formattedTemperature,
             serialNumber: trimmedSerialNumber,
-            timestamp: sensor.dt.replace(/T/, ' ').replace(/Z/, ''),
+            timestamp: formattedTimestamp,
             firmwareVersion: "1.0.0", // Set a default firmware version, update if available
             Voltage: (sensor.bt / 100).toFixed(2)
         };
 
         // Publish with "thermalsystems" prefix and trimmed serial number
-        const topic = `thermalsystems/${baseSerial}/${trimmedSerialNumber}`;
+		//const topic = `thermalsystems/${baseSerial}/${trimmedSerialNumber}`;
+        const topic = `thermalsystems/111213/${trimmedSerialNumber}`;
         mqttClient.publish(topic, JSON.stringify(payload));
         console.log(`Published to ${topic}:`, JSON.stringify(payload));
     });
 }
+
 
 
 
