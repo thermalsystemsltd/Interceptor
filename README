@@ -12,3 +12,12 @@ base should reply back with data for those sensor/sensors
 parse incoming sensor data
 publish to company topic/base serial/sensor serial (hardcoded for thermalsystems) currently due to now knowing where the mqtt topic is listed per customer 
 publish the data to the mqtt broker to be consumed by sebs code and added to database
+
+
+*****to do ***
+
+implement a redo of getSensors every 5 minutes or create listener databases on change
+create longer timeout delay for connecting to databases
+try and use sebs code again to do the above with a connection pool
+push more data to see how much it can handle
+create failover mechanisms/restarts
