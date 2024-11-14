@@ -1,0 +1,14 @@
+run basecomms,js
+
+getSensors.js connects to db1, gets company db details and names, connects to company db's and gets bases and sensor serials that are hybrid only
+stores them in array for basecomms
+
+basecomms waits for getSensors to complete array
+opens TCP sockets for incoming base messages
+parses base serial from incoming messages and compares against array, if we have a match then print the serial numbers that are hybrid
+user hybrid serial numbers to create a sensor list for the base "ts" string, encode the serial numbers in the "ts" string and send to base
+wait for base response
+base should reply back with data for those sensor/sensors
+parse incoming sensor data
+publish to company topic/base serial/sensor serial (hardcoded for thermalsystems) currently due to now knowing where the mqtt topic is listed per customer 
+publish the data to the mqtt broker to be consumed by sebs code and added to database
