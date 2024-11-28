@@ -1,0 +1,25 @@
+{
+  "name": "interceptor2",
+  "version": "1.0.0",
+  "description": "A Node.js project to dynamically generate ts strings for legacy sensors",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "sensor",
+    "ts-string",
+    "nodejs"
+  ],
+  "author": "Your Name",
+  "license": "ISC",
+  "dependencies": {
+    "buffer": "^6.0.3",
+    "crc-32": "^1.2.2",
+    "dotenv": "^16.4.5",
+    "mqtt": "^5.10.2",
+    "msnodesqlv8": "^4.2.1",
+    "mssql": "^11.0.1"
+  }
+}
